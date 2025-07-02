@@ -1,0 +1,57 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Write build number
+        run: echo "${{ github.run_number }}" >> build_number
+
+      - name: Build Docker image
+        run: |
+          IMAGE_NAME="polarna-strapi"
+          docker build -t "$IMAGE_NAME:latest" -t "$IMAGE_NAME:${{ github.run_number }}" .
+
+      # - name: Ensure no existing temp container
+      #   run: |
+      #     if [ "$(docker ps -aq -f name=temp-polarna-strapi)" ]; then
+      #       docker stop temp-polarna-strapi || true
+      #       docker rm temp-polarna-strapi || true
+      #     fi
+
+      # - name: Run temporary container for health check
+      #   run: |
+      #     docker run -d --name temp-polarna-strapi -p 1337:1337 polarna-strapi:latest
+      #     sleep 10  # Wait for the container to start
+      #     if curl -f http://localhost:1337/health; then
+      #       echo "Health check passed"
+      #       docker stop temp-polarna-strapi
+      #       docker rm temp-polarna-strapi
+      #     else
+      #       echo "Health check failed"
+      #       docker logs temp-polarna-strapi
+      #       docker stop temp-polarna-strapi
+      #       docker rm temp-polarna-strapi
+      #       exit 1
+      #     fi
+
+      - name: Stop and remove current container
+        run: |
+          if [ "$(docker ps -q -f name=polarna-strapi)" ]; then
+            docker stop polarna-strapi || true
+            docker rm polarna-strapi || true
+          fi
+
+      - name: Run new container
+        run: |
+          IMAGE_NAME="polarna-strapi"
+          docker run -d --name polarna-strapi -p 1337:1337 --restart=always -v  "/volume2/docker/polarna-strapi/data:/app/.tmp" -v "/volume2/docker/polarna-strapi/.env:/app/.env" "$IMAGE_NAME:latest"
